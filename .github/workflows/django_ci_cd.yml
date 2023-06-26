@@ -25,5 +25,23 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run Tests
+      
       run: |
-        python manage.py test myapp
+        # Install the pa_autoconfigure tool
+        pip install pythonanywhere
+        
+        # Upload source code to PythonAnywhere
+        rsync -av --exclude '.git/' --exclude 'myenv/' ./ ${{ secrets.PA_USERNAME }}@ssh.pythonanywhere.com:~/myproject/
+        
+        # SSH into PythonAnywhere and install dependencies
+        ssh ${{ secrets.PA_USERNAME }}@ssh.pythonanywhere.com 'bash -s' <<-ENDSSH
+          source ~/myenv/bin/activate
+          cd ~/myproject
+          pip install -r requirements.txt
+          python manage.py migrate
+          echo "yes" | python manage.py collectstatic
+        ENDSSH
+        
+        # Reload PythonAnywhere web app
+        pa_autoconfigure_django.py --python=3.8 --username ${{ secrets.PA_USERNAME }} --api-token ${{ secrets.PA_API_TOKEN }} --nodb myproject/
+
